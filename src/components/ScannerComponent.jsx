@@ -2,7 +2,20 @@ import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 
 const ScannerComponent = () => {
-  const [gridSize] = useState({ width: 20, height: 15 });
+  // Responsive grid size - keep desktop original, adapt mobile only
+  const getGridSize = () => {
+    if (typeof window !== 'undefined') {
+      const width = window.innerWidth;
+      if (width < 640) {
+        return { width: 12, height: 10 }; // Mobile only
+      } else if (width < 1024) {
+        return { width: 16, height: 12 }; // Tablet only  
+      }
+    }
+    return { width: 20, height: 15 }; // Desktop - keep original
+  };
+
+  const [gridSize, setGridSize] = useState(getGridSize);
   const [scanPosition, setScanPosition] = useState(0);
   const [scanDirection, setScanDirection] = useState(1);
   const [colorPhase, setColorPhase] = useState(0);
@@ -11,6 +24,22 @@ const ScannerComponent = () => {
   const intervalRef = useRef();
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [scanCount, setScanCount] = useState(0);
+
+  // Handle screen resize
+  useEffect(() => {
+    const handleResize = () => {
+      const newGridSize = getGridSize();
+      if (newGridSize.width !== gridSize.width || newGridSize.height !== gridSize.height) {
+        setGridSize(newGridSize);
+        setScanPosition(0);
+        setScanDirection(1);
+        setScanCount(0);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [gridSize]);
 
   // Scanner color schemes - bright to blackish trail
   const colorSchemes = [
@@ -132,9 +161,11 @@ const ScannerComponent = () => {
               key={`${x}-${y}`}
               className="w-full h-full border border-gray-900"
               style={{
-                aspectRatio: '1',
+                aspectRatio: '1/1',
                 backgroundColor: '#000000',
-                transition: 'background-color 0.3s ease'
+                transition: 'background-color 0.3s ease',
+                minHeight: 0,
+                minWidth: 0
               }}
             />
           );
@@ -144,7 +175,7 @@ const ScannerComponent = () => {
               key={`${x}-${y}`}
               className="w-full h-full border border-gray-800/30"
               style={{
-                aspectRatio: '1',
+                aspectRatio: '1/1',
                 backgroundColor: scannerColor,
                 transition: isTransitioning
                   ? 'background-color 1s ease'
@@ -152,8 +183,10 @@ const ScannerComponent = () => {
                 boxShadow: getScannerColor(x) === getCurrentColorScheme().colors[0] ||
                   getScannerColor(x) === getCurrentColorScheme().colors[1] ||
                   getScannerColor(x) === getCurrentColorScheme().colors[2]
-                  ? `0 0 3px ${scannerColor}50`
-                  : 'none'
+                  ? `0 0 2px ${scannerColor}50, 0 0 4px ${scannerColor}30`
+                  : 'none',
+                minHeight: 0,
+                minWidth: 0
               }}
             />
           );
@@ -164,7 +197,7 @@ const ScannerComponent = () => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white">
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white px-2 sm:px-4">
       <AnimatePresence>
         {isTransitioning && (
           <motion.div
@@ -177,15 +210,23 @@ const ScannerComponent = () => {
         )}
       </AnimatePresence>
 
-      <div className="flex justify-center items-center p-8">
-        <div className="bg-black/80 p-6 rounded-xl border border-gray-700">
+      <div className="flex justify-center items-center w-full max-w-7xl">
+        <div className="bg-black/80 p-2 sm:p-4 lg:p-6 rounded-xl border border-gray-700 w-full lg:w-auto">
           <div
-            className="grid gap-1 bg-black p-4 rounded-lg border border-gray-800"
+            className="grid gap-0.5 sm:gap-1 bg-black p-2 sm:p-4 rounded-lg border border-gray-800 w-full lg:w-auto"
             style={{
               gridTemplateColumns: `repeat(${gridSize.width}, minmax(0, 1fr))`,
               gridTemplateRows: `repeat(${gridSize.height}, minmax(0, 1fr))`,
-              width: '800px',
-              height: '600px'
+              // Desktop: use original fixed dimensions
+              ...(window.innerWidth >= 1024 ? {
+                width: '800px',
+                height: '600px'
+              } : {
+                // Mobile/Tablet: use responsive sizing
+                maxWidth: '90vw',
+                maxHeight: '70vh',
+                aspectRatio: '4/3'
+              })
             }}
           >
             {generateGrid()}
